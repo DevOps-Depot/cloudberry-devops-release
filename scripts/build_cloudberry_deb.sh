@@ -28,7 +28,7 @@ if [ ${#MISSING_TOOLS[@]} -ne 0 ]; then
 fi
 
 # Variables
-VERSION="${1:-1.6.0~rc1-1}"  # Version is passed as an argument, defaults to 1.6.0~rc1-1 if not provided
+VERSION="${1:-1.6.0-1}"
 
 # Extract base version (e.g., 1.6.0 from 1.6.0~rc1-1)
 BASE_VERSION=$(echo $VERSION | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
@@ -90,20 +90,19 @@ echo "Creating postinst script..."
 cat <<EOL > ${BUILD_DIR}/DEBIAN/postinst
 #!/bin/bash
 
-# Change ownership of the installation directory if gpadmin exists
-if id "gpadmin" &>/dev/null; then
-    chown -R gpadmin:gpadmin ${INSTALL_DIR}
-fi
-
 # Create symlink to the installation directory
 if [ -L ${SYMLINK_DIR} ] || [ -e ${SYMLINK_DIR} ]; then
     rm -f ${SYMLINK_DIR}
 fi
 ln -s ${INSTALL_DIR} ${SYMLINK_DIR}
 
-# Change ownership of the symlink if gpadmin exists
+# Change ownership of the installation directory and symlink
 if id "gpadmin" &>/dev/null; then
+    chown -R gpadmin:gpadmin ${INSTALL_DIR}
     chown -h gpadmin:gpadmin ${SYMLINK_DIR}
+else
+    chown -R root.root ${INSTALL_DIR}
+    chown -h root.root ${SYMLINK_DIR}
 fi
 
 exit 0
