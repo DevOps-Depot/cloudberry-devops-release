@@ -1,0 +1,9 @@
+Package: ${PACKAGE_NAME}
+Version: ${VERSION}
+Section: database
+Priority: optional
+Architecture: ${ARCH}
+Essential: no
+Depends: ${DEPENDS}
+Maintainer: ${MAINTAINER}
+Description: ${DESCRIPTION}

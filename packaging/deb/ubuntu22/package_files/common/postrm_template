@@ -1,0 +1,12 @@
+#!/bin/bash
+# Remove the symlink during package removal
+if [ -L "${SYMLINK_DIR}" ]; then
+    rm -f "${SYMLINK_DIR}"
+fi
+
+# Remove the specific installation directory if it is empty
+if [ -d "${INSTALL_DIR}" ]; then
+    rmdir --ignore-fail-on-non-empty "${INSTALL_DIR}"
+fi
+
+exit 0

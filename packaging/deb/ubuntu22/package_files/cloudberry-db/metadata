@@ -1,0 +1,29 @@
+PACKAGE_NAME="cloudberry-db-component1"
+VERSION="1.6.0-1"
+ARCH="amd64"
+DEPENDS="libbrotli1, libcurl3-gnutls, libcurl4, libffi8, libgmp10, libgnutls30, libgssapi-krb5-2, libhogweed6, libicu70, libidn2-0, libk5crypto3, libkrb5-3, libkrb5support0, libldap-2.5-0, liblz4-1, libnettle8, libnghttp2-14, libp11-kit0, libpsl5, librtmp1, libsasl2-2, libssh-4, libssl3, libtasn1-6, libunistring2, libxerces-c3.2, libxml2, libzstd1"
+MAINTAINER="Cloudberry Open Source <cloudberrydb@gmail.com>"
+
+read -r -d '' DESCRIPTION <<EOD
+High-performance, open-source data warehouse based on PostgreSQL/Greenplum
+ Cloudberry Database is an advanced, open-source, massively parallel
+ processing (MPP) data warehouse developed from PostgreSQL and
+ Greenplum. It is designed for high-performance analytics on
+ large-scale data sets, offering powerful analytical capabilities and
+ enhanced security features.
+ .
+ Key Features:
+ .
+ - Massively parallel processing for optimized performance
+ - Advanced analytics for complex data processing
+ - Integration with ETL and BI tools
+ - Compatibility with multiple data sources and formats
+ - Enhanced security features
+ .
+ Cloudberry Database supports both batch processing and real-time data
+ warehousing, making it a versatile solution for modern data
+ environments.
+ .
+ For more information, visit the official Cloudberry Database website
+ at https://cloudberrydb.org.
+EOD

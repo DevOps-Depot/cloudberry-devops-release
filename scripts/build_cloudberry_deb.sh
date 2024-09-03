@@ -1,137 +1,148 @@
 #!/bin/bash
 
-# Script to build a .deb package for Cloudberry Database
+# Cloudberry DB Debian Package Build Script
 
-# Usage:
-#   ./build_cloudberry_deb.sh [VERSION]
-# Example:
-#   ./build_cloudberry_deb.sh 1.6.0~rc2-1
-#   ./build_cloudberry_deb.sh  # Uses the default version 1.6.0~rc1-1
+set -euo pipefail
+
+# Uncomment the following line for debugging
+# set -x
+
+# Function to display usage information
+usage() {
+    echo "Usage: $0 [OPTIONS]"
+    echo "Options:"
+    echo "  -p, --packages-dir DIR  Specify the packages directory (default: packaging/deb/ubuntu22/package_files)"
+    echo "  -c, --component NAME    Specify a single component to build (e.g., cloudberry-db, cloudberry-hll)"
+    echo "  -h, --help              Display this help message"
+    exit 1
+}
 
 # Check for required tools
-REQUIRED_TOOLS=("dpkg-deb" "sed" "cp" "rmdir")
-MISSING_TOOLS=()
-
+REQUIRED_TOOLS=("dpkg-deb" "sed" "cp" "rmdir" "envsubst" "realpath")
 for tool in "${REQUIRED_TOOLS[@]}"; do
-    if ! command -v $tool &> /dev/null; then
-        MISSING_TOOLS+=($tool)
+    if ! command -v "$tool" &> /dev/null; then
+        echo "Error: Required tool '$tool' is not installed." >&2
+        exit 1
     fi
 done
 
-if [ ${#MISSING_TOOLS[@]} -ne 0 ]; then
-    echo "Error: The following required tools are missing:"
-    for tool in "${MISSING_TOOLS[@]}"; do
-        echo "  - $tool"
-    done
-    echo "Please install them before running this script."
+# Base directories
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+DEFAULT_PACKAGE_FILES_DIR="${REPO_ROOT}/packaging/deb/ubuntu22/package_files"
+BUILD_BASE_DIR="${HOME}/cloudberry-db-deb-build"
+
+# Parse command-line options
+PACKAGE_FILES_DIR=""
+SPECIFIC_COMPONENT=""
+while [[ $# -gt 0 ]]; do
+    key="$1"
+    case $key in
+        -p|--packages-dir)
+            PACKAGE_FILES_DIR="$2"
+            shift 2
+            ;;
+        -c|--component)
+            SPECIFIC_COMPONENT="$2"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            echo "Unknown option: $1"
+            usage
+            ;;
+    esac
+done
+
+# If no packages directory specified, use the default
+if [[ -z "$PACKAGE_FILES_DIR" ]]; then
+    PACKAGE_FILES_DIR="$DEFAULT_PACKAGE_FILES_DIR"
+fi
+
+# Convert to absolute path if relative
+PACKAGE_FILES_DIR=$(realpath -m "$PACKAGE_FILES_DIR")
+
+# Check if the packages directory exists
+if [[ ! -d "$PACKAGE_FILES_DIR" ]]; then
+    echo "Error: Packages directory '$PACKAGE_FILES_DIR' does not exist." >&2
     exit 1
 fi
 
-# Variables
-VERSION="${1:-1.6.0-1}"
+# Function to build a component package
+build_component_package() {
+    local component="$1"
 
-# Extract base version (e.g., 1.6.0 from 1.6.0~rc1-1)
-BASE_VERSION=$(echo $VERSION | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+    echo "Building package for ${component}..."
 
-# Other variables
-PACKAGE_NAME="cloudberry-db"  # Package name
-ARCH="amd64"  # Architecture
-INSTALL_DIR="/usr/local/${PACKAGE_NAME}-${BASE_VERSION}"  # Installation directory based on the base version
-SYMLINK_DIR="/usr/local/${PACKAGE_NAME}"  # Symlink to the installation directory
-BUILD_DIR=~/cloudberry-db-deb  # Directory where the .deb package is built
-DEB_FILE="${PACKAGE_NAME}_${VERSION}_${ARCH}.deb"  # Name of the .deb file
-MAINTAINER="Cloudberry Open Source <cloudberrydb@gmail.com>"  # Maintainer information
+    # Check if the component directory exists
+    if [[ ! -d "${PACKAGE_FILES_DIR}/${component}" ]]; then
+        echo "Error: Component directory '${PACKAGE_FILES_DIR}/${component}' does not exist." >&2
+        return 1
+    fi
 
-# Step 1: Create directory structure
-echo "Setting up directory structure..."
-mkdir -p ${BUILD_DIR}/DEBIAN  # Create the DEBIAN directory for control files
-mkdir -p ${BUILD_DIR}${INSTALL_DIR}  # Create the installation directory
+    # Check if the metadata file exists
+    if [[ ! -f "${PACKAGE_FILES_DIR}/${component}/metadata" ]]; then
+        echo "Error: Metadata file for component '${component}' does not exist." >&2
+        return 1
+    fi
 
-# Step 2: Copy the built files to the installation directory
-echo "Copying built files to ${INSTALL_DIR}..."
-cp -r /usr/local/cloudberry-db/* ${BUILD_DIR}${INSTALL_DIR}  # Copy the files from the source directory
+    # Source the metadata file
+    # shellcheck source=/dev/null
+    source "${PACKAGE_FILES_DIR}/${component}/metadata"
 
-# Step 3: Create control file with package metadata
-echo "Creating control file..."
-cat <<EOL > ${BUILD_DIR}/DEBIAN/control
-Package: ${PACKAGE_NAME}
-Version: ${VERSION}
-Section: database
-Priority: optional
-Architecture: ${ARCH}
-Essential: no
-Depends: libbrotli1, libcurl3-gnutls, libcurl4, libffi8, libgmp10, libgnutls30, libgssapi-krb5-2, libhogweed6, libicu70, libidn2-0, libk5crypto3, libkrb5-3, libkrb5support0, libldap-2.5-0, liblz4-1, libnettle8, libnghttp2-14, libp11-kit0, libpsl5, librtmp1, libsasl2-2, libssh-4, libssl3, libtasn1-6, libunistring2, libxerces-c3.2, libxml2, libzstd1
-Maintainer: ${MAINTAINER}
-Description: High-performance, open-source data warehouse based on PostgreSQL/Greenplum
- Cloudberry Database is an advanced, open-source, massively parallel
- processing (MPP) data warehouse developed from PostgreSQL and
- Greenplum. It is designed for high-performance analytics on
- large-scale data sets, offering powerful analytical capabilities and
- enhanced security features.
- .
- Key Features:
- .
- - Massively parallel processing for optimized performance
- - Advanced analytics for complex data processing
- - Integration with ETL and BI tools
- - Compatibility with multiple data sources and formats
- - Enhanced security features
- .
- Cloudberry Database supports both batch processing and real-time data
- warehousing, making it a versatile solution for modern data
- environments.
- .
- For more information, visit the official Cloudberry Database website
- at https://cloudberrydb.org.
-EOL
+    # Set up build directory
+    local BUILD_DIR="${BUILD_BASE_DIR}/${PACKAGE_NAME}"
+    rm -rf "${BUILD_DIR}"
+    mkdir -p "${BUILD_DIR}/DEBIAN"
+    mkdir -p "${BUILD_DIR}${INSTALL_DIR}"
 
-# Step 4: Create post-installation script
-echo "Creating postinst script..."
-cat <<EOL > ${BUILD_DIR}/DEBIAN/postinst
-#!/bin/bash
+    # Copy component files (if they exist)
+    if [[ -d "${PACKAGE_FILES_DIR}/${component}/files" ]]; then
+        cp -r "${PACKAGE_FILES_DIR}/${component}/files/"* "${BUILD_DIR}${INSTALL_DIR}/"
+    fi
 
-# Create symlink to the installation directory
-if [ -L ${SYMLINK_DIR} ] || [ -e ${SYMLINK_DIR} ]; then
-    rm -f ${SYMLINK_DIR}
-fi
-ln -s ${INSTALL_DIR} ${SYMLINK_DIR}
+    # Create control file
+    envsubst < "${PACKAGE_FILES_DIR}/common/control_template" > "${BUILD_DIR}/DEBIAN/control"
 
-# Change ownership of the installation directory and symlink
-if id "gpadmin" &>/dev/null; then
-    chown -R gpadmin:gpadmin ${INSTALL_DIR}
-    chown -h gpadmin:gpadmin ${SYMLINK_DIR}
-else
-    chown -R root.root ${INSTALL_DIR}
-    chown -h root.root ${SYMLINK_DIR}
-fi
+    # Create postinst script (if template exists)
+    if [[ -f "${PACKAGE_FILES_DIR}/common/postinst_template" ]]; then
+        envsubst < "${PACKAGE_FILES_DIR}/common/postinst_template" > "${BUILD_DIR}/DEBIAN/postinst"
+        chmod 755 "${BUILD_DIR}/DEBIAN/postinst"
+    fi
 
-exit 0
-EOL
+    # Create postrm script
+    envsubst < "${PACKAGE_FILES_DIR}/common/postrm_template" > "${BUILD_DIR}/DEBIAN/postrm"
+    chmod 755 "${BUILD_DIR}/DEBIAN/postrm"
 
-chmod 755 ${BUILD_DIR}/DEBIAN/postinst  # Make the postinst script executable
+    # Build the .deb package
+    dpkg-deb --build "${BUILD_DIR}" "${HOME}/${PACKAGE_NAME}_${VERSION}_${ARCH}.deb"
 
-# Step 5: Create post-removal script
-echo "Creating postrm script..."
-cat <<EOL > ${BUILD_DIR}/DEBIAN/postrm
-#!/bin/bash
+    echo "Package built: ${HOME}/${PACKAGE_NAME}_${VERSION}_${ARCH}.deb"
+}
 
-# Remove the symlink during package removal
-if [ -L "${SYMLINK_DIR}" ]; then
-    rm -f "${SYMLINK_DIR}"
-fi
+# Main execution
+main() {
+    echo "Using packages directory: $PACKAGE_FILES_DIR"
 
-# Remove the specific installation directory if it is empty
-if [ -d "${INSTALL_DIR}" ]; then
-    rmdir --ignore-fail-on-non-empty "${INSTALL_DIR}"
-fi
+    # Create necessary directories
+    mkdir -p "${BUILD_BASE_DIR}"
 
-exit 0
-EOL
+    if [[ -n "$SPECIFIC_COMPONENT" ]]; then
+        # Build only the specified component
+        build_component_package "$SPECIFIC_COMPONENT"
+    else
+        # Build packages for each component
+        while IFS= read -r -d '' component_dir; do
+            component=$(basename "$component_dir")
+            if [[ "$component" != "common" && -f "${component_dir}/metadata" ]]; then
+                build_component_package "$component"
+            fi
+        done < <(find "${PACKAGE_FILES_DIR}" -mindepth 1 -maxdepth 1 -type d -print0)
+    fi
 
-chmod 755 ${BUILD_DIR}/DEBIAN/postrm  # Make the postrm script executable
+    echo "All specified packages built successfully."
+}
 
-# Step 6: Build the .deb package
-echo "Building the .deb package..."
-dpkg-deb --build ${BUILD_DIR} ~/${DEB_FILE}
-
-echo "Package build complete: ~/${DEB_FILE}"
+main "$@"

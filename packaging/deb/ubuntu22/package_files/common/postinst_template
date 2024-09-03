@@ -1,0 +1,17 @@
+#!/bin/bash
+# Create symlink to the installation directory
+if [ -L ${SYMLINK_DIR} ] || [ -e ${SYMLINK_DIR} ]; then
+    rm -f ${SYMLINK_DIR}
+fi
+ln -s ${INSTALL_DIR} ${SYMLINK_DIR}
+
+# Change ownership of the installation directory and symlink
+if id "gpadmin" &>/dev/null; then
+    chown -R gpadmin:gpadmin ${INSTALL_DIR}
+    chown -h gpadmin:gpadmin ${SYMLINK_DIR}
+else
+    chown -R root.root ${INSTALL_DIR}
+    chown -h root.root ${SYMLINK_DIR}
+fi
+
+exit 0
